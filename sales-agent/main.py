@@ -7,7 +7,7 @@ from loguru import logger
 
 import config.settings as settings
 from database.repository import init_db, is_processed, mark_processed
-from services.outlook_client import get_outlook, get_inbox_emails, read_email, forward_email
+from services.outlook_client import get_outlook, get_inbox_emails, read_email, forward_email, upload_to_api
 from services.rfq_detector import is_rfq_email
 from services.tui import prompt_email, Dashboard, show_progress_bar, CLEAR_SCREEN, BOLD, RESET, RED
 
@@ -51,16 +51,21 @@ def process_mailbox(dashboard: Dashboard):
                 dashboard.add_log("Y", f"Found RFQ: '{data['subject'][:30]}...' from {data['sender']}")
                 logger.info(f"RFQ Detected: {data['subject']} from {data['sender']}")
                 
-                dashboard.add_log("B", f"Forwarding to {settings.FORWARD_TO}...")
-                forwarded = forward_email(mail)
-                
-                if forwarded:
-                    dashboard.add_log("G", "Forward successful! Logged in local Database.")
+                if settings.DELIVERY_METHOD == "api":
+                    dashboard.add_log("B", f"Uploading to server at {settings.API_INGEST_URL}...")
+                    delivered = upload_to_api(mail)
                 else:
-                    dashboard.add_log("R", "Forwarding failed. Will retry next cycle.")
+                    dashboard.add_log("B", f"Forwarding via email to {settings.FORWARD_TO}...")
+                    delivered = forward_email(mail)
                 
-                mark_processed(data["entry_id"], data["subject"], data["sender"], forwarded)
+                if delivered:
+                    dashboard.add_log("G", "Delivery successful! Logged in local Database.")
+                else:
+                    dashboard.add_log("R", "Delivery failed. Will retry next cycle.")
+                
+                mark_processed(data["entry_id"], data["subject"], data["sender"], delivered)
                 processed_count += 1
+
             else:
                 # Silently mark as processed (non-RFQ) to avoid scanning again
                 mark_processed(data["entry_id"], data["subject"], data["sender"], forwarded=False)

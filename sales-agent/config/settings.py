@@ -12,6 +12,11 @@ CHECK_INTERVAL = int(os.getenv("CHECK_INTERVAL_SECONDS", "60"))
 OUTLOOK_FOLDER = os.getenv("OUTLOOK_FOLDER", "Inbox")
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 
+# Delivery config
+API_INGEST_URL = os.getenv("API_INGEST_URL", "http://192.168.11.86/api/v1/emails/submit")
+DELIVERY_METHOD = os.getenv("DELIVERY_METHOD", "api")  # "api" or "email"
+
+
 
 RFQ_KEYWORDS = [k.strip().lower() for k in os.getenv("RFQ_KEYWORDS", "rfq,request for quotation,quote request").split(",")]
 FUZZY_MATCH_THRESHOLD = int(os.getenv("FUZZY_MATCH_THRESHOLD", "80"))
