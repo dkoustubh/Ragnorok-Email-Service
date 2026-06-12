@@ -211,6 +211,14 @@ cd Ragnorok-Email-Service
 
 > ⚠️ **The Sales Agent requires Windows** — it uses Outlook COM automation via `pywin32`.
 
+#### 🚀 One-Click Launch (Recommended)
+Simply double-click the **`run_agent.bat`** file inside the `sales-agent` folder. This script will:
+1. Verify Python installation.
+2. Create the `.env` configuration file from the template (if missing).
+3. Set up the virtual environment (`venv`) and install all required libraries.
+4. Auto-launch the agent daemon process directly!
+
+#### Manual Setup
 ```bash
 cd sales-agent
 
@@ -223,7 +231,7 @@ pip install -r requirements.txt
 
 # Create your .env from template
 copy .env.example .env
-# Edit .env with your settings (forward email, interval, keywords)
+# Edit .env with your settings
 ```
 
 **Configure `.env`:**
@@ -232,13 +240,14 @@ FORWARD_TO=atsit17@gmail.com        # Central mailbox
 CHECK_INTERVAL_SECONDS=60           # Scan frequency
 OUTLOOK_FOLDER=Inbox                # Outlook folder to monitor
 RFQ_KEYWORDS=rfq,request for quotation,quote request,tender
-FUZZY_MATCH_THRESHOLD=80            # 0-100, higher = stricter
+FUZZY_MATCH_THRESHOLD=80            # Fuzzy matching threshold
 ```
 
 **Run:**
 ```bash
 python main.py
 ```
+
 
 The agent will:
 1. Connect to Outlook on the local machine

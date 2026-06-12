@@ -5,3 +5,5 @@ google-auth-httplib2>=0.2
 google-auth-oauthlib>=1.2
 python-dotenv>=1.0
 loguru>=0.7
+psycopg2-binary>=2.9
+requests>=2.31
