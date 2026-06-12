@@ -130,6 +130,8 @@ def build_flow_panel():
 {n_src} {c1} {n_ngx} {c2} {n_rmq} {c3} {n_wrk} {c4} {n_db}
                                                  │
                                                  └─ {c5} {n_nas} ({s_nas})
+
+[bold white]Legend:[/bold white] {c1} Active   [bold yellow]──[!]──▶[/bold yellow] Warning (Offline/Error)   [bold red]──[X]──▶[/bold red] Stopped/Fault
 """
     return Panel(Align.center(Text.from_markup(flow_text.strip())), title="[bold cyan]🔄 ARCHITECTURE PROCESS FLOW[/bold cyan]", border_style="cyan", expand=True)
 
@@ -248,7 +250,7 @@ def build_dashboard():
     layout = Layout()
     layout.split_column(
         Layout(name="header", size=3),
-        Layout(name="flow", size=6),
+        Layout(name="flow", size=7),
         Layout(name="top", size=9),
         Layout(name="middle", size=10),
         Layout(name="bottom", size=8),
