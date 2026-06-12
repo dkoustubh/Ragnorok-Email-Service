@@ -1,4 +1,4 @@
-"""PostgreSQL database service to manage connection, DB creation, schema, and metadata logging."""
+"""PostgreSQL database service to manage connection, schema creation, metadata, and raw attachment binary storage."""
 import psycopg2
 from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
 from loguru import logger
@@ -9,7 +9,7 @@ def init_db():
     """Ensure database and schema exist in PostgreSQL."""
     conn = None
     try:
-        # Step 1: Connect to default postgres DB to check/create the target DB
+        # Connect to default postgres DB to check/create the target DB
         conn = psycopg2.connect(
             host=DB_HOST,
             port=DB_PORT,
@@ -29,7 +29,7 @@ def init_db():
         if conn:
             conn.close()
 
-    # Step 2: Create schema in target DB
+    # Create schema in target DB
     try:
         conn = get_db_connection()
         with conn.cursor() as cursor:
@@ -41,14 +41,15 @@ def init_db():
                     subject VARCHAR(255),
                     received_at TIMESTAMP,
                     body TEXT,
-                    storage_path VARCHAR(500),
+                    nas_backup_path VARCHAR(500),
                     processed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 );
                 CREATE TABLE IF NOT EXISTS attachments (
                     id SERIAL PRIMARY KEY,
                     email_id INTEGER REFERENCES emails(id) ON DELETE CASCADE,
                     filename VARCHAR(255),
-                    size INTEGER
+                    size INTEGER,
+                    content BYTEA
                 );
             """)
             conn.commit()
@@ -71,18 +72,21 @@ def get_db_connection():
     )
 
 
-def save_email_metadata(email_data: dict, storage_path: str) -> int:
-    """Save email and attachment metadata into PostgreSQL."""
+def save_email_to_db(email_data: dict, attachment_bytes: dict[str, bytes], nas_path: str) -> int:
+    """Save email and binary attachment data directly into PostgreSQL.
+    
+    Returns the email DB ID or -1 on failure.
+    """
     conn = get_db_connection()
     try:
         with conn.cursor() as cursor:
-            # Insert email metadata
+            # Insert email metadata and body
             cursor.execute(
                 """
-                INSERT INTO emails (message_id, sender, subject, received_at, body, storage_path)
+                INSERT INTO emails (message_id, sender, subject, received_at, body, nas_backup_path)
                 VALUES (%s, %s, %s, %s, %s, %s)
                 ON CONFLICT (message_id) DO UPDATE 
-                SET storage_path = EXCLUDED.storage_path
+                SET nas_backup_path = EXCLUDED.nas_backup_path
                 RETURNING id;
                 """,
                 (
@@ -91,23 +95,29 @@ def save_email_metadata(email_data: dict, storage_path: str) -> int:
                     email_data.get("subject"),
                     email_data.get("date"),
                     email_data.get("body"),
-                    str(storage_path)
+                    nas_path
                 )
             )
             email_id = cursor.fetchone()[0]
 
-            # Insert attachments
-            for att in email_data.get("attachments", []):
+            # Clear existing attachments if any to handle retries/updates cleanly
+            cursor.execute("DELETE FROM attachments WHERE email_id = %s", (email_id,))
+
+            # Insert attachments with binary content (BYTEA)
+            for filename, data in attachment_bytes.items():
                 cursor.execute(
-                    "INSERT INTO attachments (email_id, filename, size) VALUES (%s, %s, %s)",
-                    (email_id, att["filename"], att.get("size", 0))
+                    """
+                    INSERT INTO attachments (email_id, filename, size, content)
+                    VALUES (%s, %s, %s, %s)
+                    """,
+                    (email_id, filename, len(data), psycopg2.Binary(data))
                 )
             conn.commit()
-            logger.info(f"Saved email metadata to database (ID: {email_id})")
+            logger.info(f"Successfully saved email and attachments directly to database (DB ID: {email_id})")
             return email_id
     except Exception as e:
         conn.rollback()
-        logger.error(f"Failed to save email metadata to DB: {e}")
+        logger.error(f"Failed to save email/attachments to DB: {e}")
         return -1
     finally:
         conn.close()

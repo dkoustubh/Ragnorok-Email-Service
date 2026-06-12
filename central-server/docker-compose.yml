@@ -1,0 +1,78 @@
+version: '3.8'
+
+services:
+  # RabbitMQ Message Broker
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: ragnarok_rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672" # Management UI
+    environment:
+      - RABBITMQ_DEFAULT_USER=guest
+      - RABBITMQ_DEFAULT_PASS=guest
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - ragnarok_net
+    restart: always
+
+  # FastAPI Server instances
+  web:
+    build: .
+    image: ragnarok_central_server:latest
+    env_file:
+      - .env
+    environment:
+      - DB_HOST=host.docker.internal # Connect to Postgres on host machine
+      - RABBITMQ_HOST=rabbitmq
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - ragnarok_net
+    volumes:
+      - ./credentials:/app/credentials
+    depends_on:
+      - rabbitmq
+    restart: always
+
+  # Background Worker (RabbitMQ Consumer)
+  worker:
+    build: .
+    image: ragnarok_central_server:latest
+    command: python worker.py
+    env_file:
+      - .env
+    environment:
+      - DB_HOST=host.docker.internal # Connect to Postgres on host machine
+      - RABBITMQ_HOST=rabbitmq
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - ragnarok_net
+    volumes:
+      - ./credentials:/app/credentials
+    depends_on:
+      - rabbitmq
+    restart: always
+
+  # Nginx Load Balancer / Reverse Proxy
+  nginx:
+    image: nginx:alpine
+    container_name: ragnarok_nginx
+    ports:
+      - "80:80" # Exposed API endpoint on host port 80
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - web
+    networks:
+      - ragnarok_net
+    restart: always
+
+networks:
+  ragnarok_net:
+    driver: bridge
+
+volumes:
+  rabbitmq_data:

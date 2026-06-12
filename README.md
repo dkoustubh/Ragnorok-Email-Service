@@ -414,17 +414,70 @@ storage/Downloads/Emails/
 
 ---
 
-## Future Roadmap
+## 🏗️ Production Server Architecture & Deploy (192.168.11.86)
 
-The architecture is designed for seamless integration of:
+To balance load and ensure message reliability when processing simultaneous bursts of RFQ requests, the Central Server uses an asynchronous queueing system.
 
-| Technology | Integration Point | Purpose |
-|------------|-------------------|---------|
-| **PostgreSQL** | Replace SQLite in Sales Agent; add metadata DB to Central Server | Scalable persistent storage |
-| **RabbitMQ** | Event bus between Sales Agent → Central Server | Real-time event-driven processing |
-| **Ollama (LLM)** | Add `services/ai_classifier.py` | AI-powered RFQ classification & data extraction |
-| **Qdrant** | Add `services/vector_store.py` | Semantic search over email corpus |
-| **RAG Pipeline** | Combine Ollama + Qdrant | Intelligent RFQ matching & response generation |
+```
+                  ┌──────────────────────┐
+                  │      Nginx Proxy     │ (Exposed Port 80)
+                  │    (Load Balancer)   │
+                  └──────────┬───────────┘
+                             │ (Round-Robin)
+             ┌───────────────┼───────────────┐
+             ▼               ▼               ▼
+      ┌────────────┐   ┌────────────┐   ┌────────────┐
+      │ FastAPI #1 │   │ FastAPI #2 │   │ FastAPI #3 │ (Poller instances)
+      └──────┬─────┘   └──────┬─────┘   └──────┬─────┘
+             │                │                │ (Publish Task)
+             ▼                ▼                ▼
+     ┌───────────────────────────────────────────┐
+     │           RabbitMQ Message Queue          │
+     └─────────────────────┬─────────────────────┘
+                           │ (Fair Dispatch Prefetch=1)
+                           ▼
+                  ┌─────────────────┐
+                  │  Python Worker  │ (Async consumer)
+                  └─┬─────────────┬─┘
+                    │             │
+     (Primary CRUD) │             │ (Secondary Backup)
+                    ▼             ▼
+             ┌────────────┐  ┌────────────┐
+             │ PostgreSQL │  │ Remote NAS │ (192.168.11.153:3000)
+             │  (BYTEA)   │  │  (WebDAV)  │
+             └────────────┘  └────────────┘
+```
+
+### 🗄️ Primary CRUD Storage Schema (PostgreSQL)
+The main database holds both metadata and binary attachment blocks (`BYTEA`) directly. No files are saved to the server local filesystem.
+- `emails`: message ID, sender, subject, date, body text, and NAS path reference.
+- `attachments`: name, size, and binary blob data (`BYTEA`).
+
+### ⚙️ How to Deploy on `192.168.11.86`
+
+1. **SSH into the Server**:
+   ```bash
+   ssh ats@192.168.11.86
+   # Password: 1234
+   ```
+2. **Clone and Navigate to Server Folder**:
+   ```bash
+   git clone https://github.com/dkoustubh/Ragnorok-Email-Service.git
+   cd Ragnorok-Email-Service/central-server
+   ```
+3. **Configure Environment Options**:
+   Ensure `.env` matches your environment credentials:
+   - PostgreSQL credentials (`admin` / `Ats@123*`).
+   - NAS WebDAV credentials (`AI-GPU` / `Atsit123*`).
+4. **Boot Up Stack**:
+   ```bash
+   docker-compose up --build -d
+   ```
+5. **Scale Out Web Instances** (Optional load balancing):
+   ```bash
+   docker-compose up --scale web=3 -d
+   ```
+This brings up RabbitMQ, a worker service, multiple scaled backend FastAPI nodes, and Nginx proxying traffic on Port 80.
 
 ---
 
@@ -434,12 +487,13 @@ The architecture is designed for seamless integration of:
 |-------|-------------|----------------|
 | **Language** | Python 3.10+ | Python 3.10+ |
 | **Email** | pywin32 (Outlook COM) | Gmail API |
-| **Detection** | RapidFuzz | — |
-| **Database** | SQLite | — |
-| **API** | — | FastAPI + Uvicorn |
-| **Logging** | Loguru | Loguru |
-| **Config** | python-dotenv | python-dotenv |
-| **Packaging** | PyInstaller | — |
+| **Message Queue** | — | RabbitMQ (pika) |
+| **Database** | SQLite (WAL mode) | PostgreSQL (`psycopg2` BYTEA blob) |
+| **Storage Backup** | — | NAS (WebDAV / HTTP Port 3000) |
+| **Web Server** | — | FastAPI + Uvicorn |
+| **Proxy / Balancer** | — | Nginx |
+| **Packaging** | PyInstaller | Docker & Docker Compose |
+
 
 ---
 
