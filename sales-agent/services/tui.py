@@ -67,7 +67,7 @@ def prompt_email() -> str:
 
 def _save_email_to_env(email: str):
     """Save the monitored email directly into the .env file."""
-    env_path = Path(__file__).resolve().parent.parent.parent / ".env"
+    env_path = Path(__file__).resolve().parent.parent / ".env"
     
     # Read existing content
     content = ""
