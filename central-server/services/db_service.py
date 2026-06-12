@@ -36,9 +36,9 @@ def init_db():
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS emails (
                     id SERIAL PRIMARY KEY,
-                    message_id VARCHAR(255) UNIQUE,
-                    sender VARCHAR(255),
-                    subject VARCHAR(255),
+                    message_id VARCHAR(512) UNIQUE,
+                    sender VARCHAR(512),
+                    subject TEXT,
                     received_at TIMESTAMP,
                     body TEXT,
                     nas_backup_path VARCHAR(500),
@@ -47,10 +47,19 @@ def init_db():
                 CREATE TABLE IF NOT EXISTS attachments (
                     id SERIAL PRIMARY KEY,
                     email_id INTEGER REFERENCES emails(id) ON DELETE CASCADE,
-                    filename VARCHAR(255),
+                    filename VARCHAR(512),
+                    content_type VARCHAR(255) DEFAULT 'application/octet-stream',
                     size INTEGER,
                     content BYTEA
                 );
+            """)
+            conn.commit()
+            # Auto-migrate: add content_type column if it doesn't exist (existing installs)
+            cursor.execute("""
+                DO $$ BEGIN
+                    ALTER TABLE attachments ADD COLUMN content_type VARCHAR(255) DEFAULT 'application/octet-stream';
+                EXCEPTION WHEN duplicate_column THEN NULL;
+                END $$;
             """)
             conn.commit()
             logger.info("PostgreSQL database tables verified/created successfully.")
@@ -70,6 +79,13 @@ def get_db_connection():
         password=DB_PASSWORD,
         dbname=DB_NAME
     )
+
+
+def _guess_mime(filename: str) -> str:
+    """Guess MIME type from filename extension."""
+    import mimetypes
+    mime, _ = mimetypes.guess_type(filename)
+    return mime or "application/octet-stream"
 
 
 def save_email_to_db(email_data: dict, attachment_bytes: dict[str, bytes], nas_path: str) -> int:
@@ -107,10 +123,10 @@ def save_email_to_db(email_data: dict, attachment_bytes: dict[str, bytes], nas_p
             for filename, data in attachment_bytes.items():
                 cursor.execute(
                     """
-                    INSERT INTO attachments (email_id, filename, size, content)
-                    VALUES (%s, %s, %s, %s)
+                    INSERT INTO attachments (email_id, filename, content_type, size, content)
+                    VALUES (%s, %s, %s, %s, %s)
                     """,
-                    (email_id, filename, len(data), psycopg2.Binary(data))
+                    (email_id, filename, _guess_mime(filename), len(data), psycopg2.Binary(data))
                 )
             conn.commit()
             logger.info(f"Successfully saved email and attachments directly to database (DB ID: {email_id})")
