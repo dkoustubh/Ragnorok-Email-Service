@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+
+# Environment (keep .env.example, ignore actual .env)
+.env
+
+# Credentials
+credentials/*.json
+!credentials/README.md
+token.json
+
+# Logs
+logs/
+
+# Storage
+storage/
+
+# Database
+*.db
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db

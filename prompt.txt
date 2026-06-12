@@ -1,0 +1,104 @@
+Design and generate a production-ready Python project with a clean modular architecture consisting of **two independent components**:
+
+### 1. Sales Team Agent (`sales-agent/`)
+
+A lightweight Windows EXE application installed on Sales PCs.
+
+Responsibilities:
+
+* Monitor Outlook mailbox.
+* Detect RFQ-related emails using keyword matching.
+* Read email metadata, body, and attachments.
+* Forward valid RFQ emails to `atsit17@gmail.com`.
+* Maintain local logs.
+* Prevent duplicate processing.
+* Store configuration in `.env`.
+* Support packaging using PyInstaller.
+
+Suggested technologies:
+
+* Python
+* pywin32
+* SQLite
+* Loguru
+* RapidFuzz
+* python-dotenv
+* PyInstaller
+
+Folder structure:
+
+```text
+sales-agent/
+├── main.py
+├── services/
+├── database/
+├── logs/
+├── config/
+├── .env
+└── build/
+```
+
+---
+
+### 2. Central Server (`central-server/`)
+
+Receives forwarded RFQ emails and stores them in a structured repository.
+
+Responsibilities:
+
+* Read emails from `atsit17@gmail.com`.
+* Extract sender, subject, body, timestamp, and attachments.
+* Automatically create folder structure:
+
+```text
+Downloads/
+└── Emails/
+    └── Company/
+        └── Person/
+            └── MAIL_TIMESTAMP/
+                ├── Mail Body/
+                │   ├── body.txt
+                │   └── body.json
+                └── Attachments/
+```
+
+* Save email body as TXT and JSON.
+* Save all attachments.
+* Maintain logs.
+* Expose FastAPI endpoints for future integration.
+
+Suggested technologies:
+
+* Python
+* FastAPI
+* Gmail API
+* pathlib
+* JSON
+* Loguru
+* python-dotenv
+
+Folder structure:
+
+```text
+central-server/
+├── app/
+├── services/
+├── storage/
+├── logs/
+├── credentials/
+├── .env
+└── main.py
+```
+
+---
+
+Generate:
+
+* Complete folder architecture.
+* Recommended file names.
+* Service breakdown.
+* Data flow diagram.
+* Responsibilities of each module.
+* Scalable design that can later integrate PostgreSQL, RabbitMQ, Ollama, Qdrant, and RAG without major refactoring.
+
+Focus on clean architecture, separation of concerns, maintainability, and production readiness.

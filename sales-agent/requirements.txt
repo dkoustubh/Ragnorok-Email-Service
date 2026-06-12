@@ -1,0 +1,5 @@
+pywin32>=306
+python-dotenv>=1.0
+loguru>=0.7
+rapidfuzz>=3.0
+pyinstaller>=6.0
