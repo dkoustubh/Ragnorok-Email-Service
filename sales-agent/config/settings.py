@@ -12,6 +12,12 @@ CHECK_INTERVAL = int(os.getenv("CHECK_INTERVAL_SECONDS", "60"))
 OUTLOOK_FOLDER = os.getenv("OUTLOOK_FOLDER", "Inbox")
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 
+# Mail client settings
+MAIL_CLIENT_MODE = os.getenv("MAIL_CLIENT_MODE", "auto")  # "outlook", "imap", or "auto"
+IMAP_HOST = os.getenv("IMAP_HOST", "")
+IMAP_PORT = int(os.getenv("IMAP_PORT", "993"))
+IMAP_PASSWORD = os.getenv("IMAP_PASSWORD", "")
+
 # Delivery config
 API_INGEST_URL = os.getenv("API_INGEST_URL", "http://192.168.11.86/api/v1/emails/submit")
 DELIVERY_METHOD = os.getenv("DELIVERY_METHOD", "api")  # "api" or "email"
