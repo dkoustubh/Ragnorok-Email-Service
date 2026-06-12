@@ -5,7 +5,7 @@ import pythoncom
 import win32com.client
 import requests
 from loguru import logger
-from config.settings import OUTLOOK_FOLDER, FORWARD_TO, API_INGEST_URL
+from config.settings import OUTLOOK_FOLDER, FORWARD_TO, API_INGEST_URL, MONITORED_EMAIL
 
 
 def get_outlook():
@@ -16,8 +16,21 @@ def get_outlook():
 
 
 def get_inbox_emails(namespace):
-    """Retrieve unread emails from configured Outlook folder."""
-    inbox = namespace.GetDefaultFolder(6)  # 6 = olFolderInbox
+    """Retrieve emails from the configured Outlook account and folder."""
+    inbox = None
+    if MONITORED_EMAIL:
+        for folder in namespace.Folders:
+            if MONITORED_EMAIL.lower() in folder.Name.lower():
+                try:
+                    inbox = folder.Folders(OUTLOOK_FOLDER)
+                    break
+                except Exception:
+                    pass
+
+    if inbox is None:
+        # Fallback to default MAPI inbox (olFolderInbox = 6)
+        inbox = namespace.GetDefaultFolder(6)
+
     messages = inbox.Items
     messages.Sort("[ReceivedTime]", True)
     return messages
