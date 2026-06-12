@@ -39,14 +39,11 @@ DB_USER = os.getenv("DB_USER", "admin")
 DB_PASS = os.getenv("DB_PASSWORD", "Ats@123*")
 DB_NAME = os.getenv("DB_NAME", "email_service")
 API_URL = os.getenv("API_URL", "http://localhost")
+NAS_URL = os.getenv("NAS_URL", "http://192.168.11.153:3000")
 
 console = Console()
 
-BANNER = """
-[bold cyan]╔══════════════════════════════════════════════════════════════╗
-║     ⚡ RAGNAROK CENTRAL SERVER — LIVE DASHBOARD ⚡          ║
-╚══════════════════════════════════════════════════════════════╝[/bold cyan]
-"""
+BANNER = "[bold cyan]⚡ RAGNAROK CENTRAL SERVER — LIVE TUI DASHBOARD ⚡[/bold cyan]"
 
 def get_db():
     try:
@@ -82,6 +79,59 @@ def check_api():
         return r.status_code == 200
     except:
         return False
+
+def check_nas():
+    try:
+        url = NAS_URL
+        if "://" in url:
+            url = url.split("://")[1]
+        host_port = url.split("/")[0]
+        if ":" in host_port:
+            host, port = host_port.split(":")
+        else:
+            host, port = host_port, 80
+        return check_port(host, int(port))
+    except:
+        return False
+
+def build_flow_panel():
+    is_api = check_api()
+    is_ngx = check_docker("ragnarok_nginx") or check_port("localhost", 80)
+    is_rmq = check_docker("ragnarok_rabbitmq") or check_port("localhost", 5672)
+    is_wrk = check_docker("central-server_worker_1")
+    is_db = check_port(DB_HOST, DB_PORT)
+    is_nas = check_nas()
+
+    # Connections / Pipelines status
+    c1 = "[bold green]──────▶[/bold green]" if is_ngx else "[bold red]──[X]──▶[/bold red]"
+    c2 = "[bold green]──────▶[/bold green]" if (is_ngx and is_rmq) else "[bold red]──[X]──▶[/bold red]"
+    c3 = "[bold green]──────▶[/bold green]" if (is_rmq and is_wrk) else "[bold red]──[X]──▶[/bold red]"
+    c4 = "[bold green]──────▶[/bold green]" if (is_wrk and is_db) else "[bold red]──[X]──▶[/bold red]"
+    
+    if not is_wrk:
+        c5 = "[bold red]──[X]──▶[/bold red]"
+    elif not is_nas:
+        c5 = "[bold yellow]──[!]──▶[/bold yellow]"
+    else:
+        c5 = "[bold green]──────▶[/bold green]"
+
+    # Nodes
+    n_src = "[bold green][Email Source][/bold green]"
+    n_ngx = "[bold green][Nginx/API][/bold green]" if is_ngx else "[bold red][Nginx/API][/bold red]"
+    n_rmq = "[bold green][RabbitMQ][/bold green]" if is_rmq else "[bold red][RabbitMQ][/bold red]"
+    n_wrk = "[bold green][Worker][/bold green]" if is_wrk else "[bold red][Worker][/bold red]"
+    n_db  = "[bold green][PostgreSQL][/bold green]" if is_db else "[bold red][PostgreSQL][/bold red]"
+    n_nas = "[bold green][WebDAV NAS][/bold green]" if is_nas else "[bold yellow][WebDAV NAS][/bold yellow]"
+
+    # Status annotations
+    s_nas = "[bold green]ONLINE[/bold green]" if is_nas else "[bold yellow]OFFLINE ⚠[/bold yellow]"
+
+    flow_text = f"""
+{n_src} {c1} {n_ngx} {c2} {n_rmq} {c3} {n_wrk} {c4} {n_db}
+                                                 │
+                                                 └─ {c5} {n_nas} ({s_nas})
+"""
+    return Panel(Align.center(Text.from_markup(flow_text.strip())), title="[bold cyan]🔄 ARCHITECTURE PROCESS FLOW[/bold cyan]", border_style="cyan", expand=True)
 
 def build_status_panel():
     tbl = Table(box=box.SIMPLE_HEAVY, show_header=False, expand=True, padding=(0, 2))
@@ -197,10 +247,11 @@ def build_attachments_panel():
 def build_dashboard():
     layout = Layout()
     layout.split_column(
-        Layout(name="header", size=5),
+        Layout(name="header", size=3),
+        Layout(name="flow", size=6),
         Layout(name="top", size=9),
-        Layout(name="middle", size=12),
-        Layout(name="bottom", size=10),
+        Layout(name="middle", size=10),
+        Layout(name="bottom", size=8),
     )
     layout["top"].split_row(
         Layout(name="status", ratio=1),
@@ -208,6 +259,7 @@ def build_dashboard():
     )
 
     layout["header"].update(Align.center(Text.from_markup(BANNER.strip())))
+    layout["flow"].update(build_flow_panel())
     layout["status"].update(build_status_panel())
     layout["stats"].update(build_stats_panel())
     layout["middle"].update(build_recent_panel())
