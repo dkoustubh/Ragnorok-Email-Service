@@ -5,8 +5,38 @@ from typing import List
 from fastapi import APIRouter, BackgroundTasks, File, Form, UploadFile
 from services.email_processor import process_new_emails
 from services.rabbitmq_publisher import publish_email_task
+from services.db_service import get_db_connection
 
 router = APIRouter(prefix="/api/v1", tags=["emails"])
+
+
+@router.get("/emails")
+async def list_emails():
+    """List all stored emails with their attachments — use this to verify DB contents."""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT e.id, e.message_id, e.sender, e.subject, e.date_received,
+               e.body, e.processed_at,
+               COALESCE(json_agg(json_build_object(
+                   'id', a.id, 'filename', a.filename,
+                   'content_type', a.content_type, 'size', a.size
+               )) FILTER (WHERE a.id IS NOT NULL), '[]') as attachments
+        FROM emails e
+        LEFT JOIN attachments a ON e.id = a.email_id
+        GROUP BY e.id
+        ORDER BY e.processed_at DESC
+    """)
+    rows = cur.fetchall()
+    cols = [d[0] for d in cur.description]
+    cur.close()
+    conn.close()
+    emails = []
+    for row in rows:
+        email = dict(zip(cols, row))
+        email["processed_at"] = str(email["processed_at"]) if email["processed_at"] else None
+        emails.append(email)
+    return {"total": len(emails), "emails": emails}
 
 
 @router.get("/health")
